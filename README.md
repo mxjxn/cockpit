@@ -1,309 +1,293 @@
-# Bike Turn Signals & Lighting System
+# Cockpit - Networked Vehicle Lighting & Synchronization Platform
 
-A complete Arduino-based lighting system for bicycles featuring animated turn signals, brake lights, and tail lights using WS2812B LED strips.
+A modular platform for synchronized lighting, music, and sensor systems across multiple vehicles (bikes, skateboards, etc.) using Arduino, Raspberry Pi, and wireless mesh networking.
 
-## Features
+## Vision
 
-- **Turn Signals**: Animated chevron arrows moving across 4x12 LED grids (overrides all other modes)
-- **Brake Lights**: Animated alternating pattern that intensifies when braking (momentary button standin until hydraulic brake switch installed)
-- **Tail Lights**: Bright red perimeter outline with soft center illumination
-- **Front Rack Lights**: Soft ambient lighting with bright flashing turn indicators
-- **Party Mode**: Rainbow wave animations on front strips + color-changing rings in tail light centers (perimeter stays red for safety)
-  - Turn signals override party mode animations
-  - Toggle on/off with handlebar button
-- **Horn**: 12V horn with relay control + white LED strobe effect (highest priority, overrides everything)
-- **Battery Monitor**: Real-time 12V battery voltage monitoring with visual warnings
-  - Low battery: Amber pulse indicator
-  - Critical battery: Fast red flash alert
-- **Expandable**: Ready for hydraulic brake switch upgrade
+Create a network of vehicles that can:
+- **Sync light shows** in real-time when within range
+- **Synchronize music playback** using EchoFlux
+- **Share sensor data** (speed, location, battery, etc.)
+- **Coordinate animations** for group rides
+- **Auto-discover** nearby vehicles
+- **Mesh network** for extended range
 
-## Hardware Requirements
+## Project Structure
 
-### Components
-- **SparkFun RedBoard** (or Arduino Uno compatible)
-- **WS2812B LED Strips**:
-  - 2x 60 LED strips (front left/right on rack)
-  - 2x 48 LED grids (4x12, arranged as tail lights)
-  - Total: 216 LEDs
-- **Handlebar Controls**:
-  - **3-way toggle switch** (turn signals - left/center/right)
-  - **Momentary button #1** (brake standin - will be replaced with hydraulic brake switch)
-  - **Toggle button** (party mode on/off)
-  - **Momentary button #2** (horn)
-- **12V battery** (recommended: 12V 5Ah+ for good runtime)
-- **12V to 5V buck converter** (10A+ rated)
-- **Horn System**:
-  - **12V horn** (motorcycle/automotive, 1-2A)
-  - **5V relay module** (SRD-05VDC-SL-C or similar)
-- **Battery Monitor**:
-  - **10kΩ resistor** (voltage divider R1)
-  - **6.8kΩ resistor** (voltage divider R2)
-  - **0.1µF capacitor** (optional, for filtering)
-- **Wiring**: 18-20 AWG wire for power, 22-24 AWG for signals
-
-**See [HORN_AND_BATTERY.md](HORN_AND_BATTERY.md) for detailed horn and battery monitor setup**
-
-### Power Supply Recommendations
-
-#### Why 12V Battery?
-Using a 12V battery provides better capacity/weight ratio and longer runtime compared to a direct 5V battery pack.
-
-#### Buck Converter Selection
-You need a **12V to 5V DC-DC buck converter** rated for at least **10 Amps**. Recommended models:
-- **LM2596 10A adjustable buck converter** (~$5-10)
-- **Pololu D24V50F5** (5A, quieter, more expensive)
-- **DROK LM2596** (adjustable, high efficiency)
-
-#### Power Calculations
-- Max theoretical draw: 216 LEDs × 60mA = **12.96A** (all LEDs at full white)
-- Typical animation draw: **6-8A** (much more realistic)
-- 12V 5Ah battery runtime: ~45-60 minutes of continuous use
-
-#### Wiring for Power
 ```
-12V Battery (+) ──→ Buck Converter IN+ ──→ 5V OUT+ ──→ LED Strip VCC (all strips in parallel)
-12V Battery (-) ──→ Buck Converter IN- ──→ 5V OUT- ──→ LED Strip GND (all strips in parallel)
-                                              │
-                                              └──→ RedBoard GND (common ground!)
+cockpit/
+├── arduino-bike-lights/          # Arduino-based LED control system
+│   ├── bike_lights/              # Main Arduino sketch
+│   ├── README.md                 # Arduino setup guide
+│   ├── WIRING.md                 # Hardware wiring diagrams
+│   ├── PARTS_LIST.md             # Bill of materials
+│   └── HORN_AND_BATTERY.md       # Horn and voltage monitor setup
+│
+├── pi-controller/                # Raspberry Pi Zero controller (future)
+│   ├── main.py                   # Main Pi control application
+│   ├── sync/                     # Synchronization protocol
+│   ├── echoflux_integration/     # Music sync integration
+│   └── README.md                 # Pi setup guide
+│
+├── sync-protocol/                # Cross-platform sync specification (future)
+│   ├── PROTOCOL.md               # Protocol specification
+│   ├── message_types.md          # Message format definitions
+│   └── examples/                 # Implementation examples
+│
+└── docs/                         # Architecture and design docs
+    ├── NETWORKING_ARCHITECTURE.md   # Overall system architecture
+    ├── SYNC_PROTOCOL.md          # Synchronization design
+    ├── ECHOFLUX_INTEGRATION.md   # Music sync design
+    └── DEPLOYMENT.md             # Multi-vehicle setup guide
 ```
 
-**CRITICAL**: Connect RedBoard GND to LED power GND for common ground. Without this, data signals won't work!
+## Current Status
 
-## Wiring Diagram
+### ✅ Implemented
+- **Arduino Bike Lights** - Complete standalone LED control system
+  - Turn signals with animated chevrons
+  - Brake lights with pulsing animation
+  - Party mode with rainbow effects
+  - 12V horn with white LED strobe
+  - Battery voltage monitoring
+  - 216 WS2812B LEDs (120 front + 96 rear grids)
 
-### LED Data Connections
+### 🚧 In Design
+- **Raspberry Pi Controller** - Network coordinator and music player
+- **Sync Protocol** - Wireless synchronization specification
+- **EchoFlux Integration** - Shared music playback
+
+### 📋 Planned
+- **Multi-vehicle mesh network**
+- **Mobile app control**
+- **GPS-based formations**
+- **Sensor fusion** (accelerometer, gyro, GPS)
+
+## Architecture Overview
+
+### Hardware Layers
+
 ```
-RedBoard Pin 6 ──→ Front Left Strip (60 LEDs)   ──→ Front Right Strip (60 LEDs)
-                                                 ──→ Tail Left Grid (48 LEDs)
-                                                 ──→ Tail Tail Grid (48 LEDs)
-```
-
-All LED strips are **daisy-chained** on the data line in this order:
-1. Front Left (LEDs 0-59)
-2. Front Right (LEDs 60-119)
-3. Tail Left (LEDs 120-167)
-4. Tail Right (LEDs 168-215)
-
-### Control Inputs
-```
-RedBoard Pin 2 ──→ Turn Signal Left Switch ──→ GND (when active)
-RedBoard Pin 3 ──→ Turn Signal Right Switch ──→ GND (when active)
-RedBoard Pin 4 ──→ Brake Momentary Button ──→ GND (when pressed)
-RedBoard Pin 5 ──→ Party Mode Toggle Button ──→ GND (when on)
-RedBoard Pin 7 ──→ Horn Momentary Button ──→ GND (when pressed)
-RedBoard Pin 8 ──→ Horn Relay Module (IN pin)
-RedBoard Pin A0 ──→ Voltage Divider Output (between R1 and R2)
-```
-
-All switches use **INPUT_PULLUP** mode (active LOW). Wire one side of each switch to the pin, the other to GND.
-
-### 3-Way Toggle Switch Wiring
-Your handlebar switch has a 3-position toggle:
-```
-Left Position:  Pin 2 → GND (Pin 3 open)
-Center:         Both pins open
-Right Position: Pin 3 → GND (Pin 2 open)
-```
-
-### Full Pin Assignment
-| Pin | Function | Type | Notes |
-|-----|----------|------|-------|
-| 2 | Turn Left | Digital Input | Active LOW, pullup enabled |
-| 3 | Turn Right | Digital Input | Active LOW, pullup enabled |
-| 4 | Brake (temp) | Digital Input | Active LOW, momentary button standin |
-| 5 | Party Mode | Digital Input | Active LOW, toggle button |
-| 6 | LED Data | Digital Output | WS2812B data line |
-| 7 | Horn Button | Digital Input | Active LOW, momentary button |
-| 8 | Horn Relay | Digital Output | Drives 5V relay for 12V horn |
-| A0 | Battery Voltage | Analog Input | Voltage divider (10kΩ + 6.8kΩ) |
-
-## LED Grid Layout
-
-### Tail Light Grids (4 rows × 12 columns)
-The 48-LED grids use a **snaking pattern**:
-```
-Column:  0  1  2  3  4  5  6  7  8  9  10 11
-Row 0:   ↑  ↓  ↑  ↓  ↑  ↓  ↑  ↓  ↑  ↓  ↑  ↓
-Row 1:   ↑  ↓  ↑  ↓  ↑  ↓  ↑  ↓  ↑  ↓  ↑  ↓
-Row 2:   ↑  ↓  ↑  ↓  ↑  ↓  ↑  ↓  ↑  ↓  ↑  ↓
-Row 3:   ↑  ↓  ↑  ↓  ↑  ↓  ↑  ↓  ↑  ↓  ↑  ↓
-```
-- Even columns (0,2,4...): Data flows **bottom to top** (Row 0→3)
-- Odd columns (1,3,5...): Data flows **top to bottom** (Row 3→0)
-
-## Animations
-
-### Animation Priority
-The system uses the following priority order (highest to lowest):
-1. **Horn** - WHITE STROBE (overrides everything for maximum visibility)
-2. **Turn Signals** - Override party mode and normal lights
-3. **Brake** - Overrides party mode and normal tail lights
-4. **Party Mode** - Active when toggle is on
-5. **Normal Mode** - Default state
-6. **Battery Warnings** - Subtle overlay, doesn't interfere with safety features
-
-### Tail Lights (Normal Mode)
-- **Perimeter**: Bright red outline (255 brightness)
-- **Center**: Soft red fill (76 brightness, ~30%)
-
-### Turn Signals (Highest Priority)
-- **Front strips**: Bright orange flash on signaling side (500ms on/off)
-  - Non-signaling side shows party mode if active, otherwise ambient
-- **Tail grids**: 3 moving chevron arrows (4px wide each) on signaling side
-  - Left signal: Chevrons point left (<)
-  - Right signal: Chevrons point right (>)
-  - Non-signaling side shows party mode if active, otherwise normal tail lights
-  - Animation speed: 80ms per frame
-- **Always overrides party mode and normal modes**
-
-### Brake Lights
-- **Perimeter**: Remains bright red
-- **Center**: Animates from 30% to 90% brightness
-- Alternating checkerboard pattern for visual impact
-- Animation speed: 50ms per frame
-- **Note**: Currently triggered by momentary button (Pin 4) until hydraulic brake switch is installed
-
-### Party Mode
-Activated by toggle button (Pin 5):
-- **Front strips**:
-  - Smooth rainbow wave animation
-  - Left and right strips offset for visual variety
-- **Tail grids**:
-  - **Perimeter**: Stays bright red for safety visibility
-  - **Center**: Color-changing rings radiating from center
-- **Animation speed**: 30ms per frame
-- **Overridden by**: Turn signals and brake
-
-### Horn (Highest Priority!)
-Activated by momentary button (Pin 7):
-- **12V horn sounds** via relay (Pin 8)
-- **All 216 LEDs strobe bright white** at 10Hz (100ms on/off)
-- **Off phase**: Shows normal tail lights (safety)
-- **Overrides everything** - maximum visibility and attention
-
-### Battery Monitor Warnings
-Subtle visual indicators (don't interfere with safety features):
-
-| Battery Level | Voltage | Indicator |
-|---------------|---------|-----------|
-| **Good** | > 10.5V | No warning |
-| **Low** | 10.0V - 10.5V | Amber pulse on first LED of each tail grid (1Hz) |
-| **Critical** | < 10.0V | Fast red flash on bottom 3 LEDs of each tail grid (4Hz) |
-
-- **Serial Monitor**: Shows voltage every 2 seconds
-- **Voltage displayed**: Accurate to ±0.2V
-- **See [HORN_AND_BATTERY.md](HORN_AND_BATTERY.md)** for voltage divider setup
-
-## Installation
-
-### Software Setup
-
-1. **Install Arduino IDE** (1.8.19+ or 2.x)
-   - Download from https://arduino.cc/en/software
-
-2. **Install FastLED Library**
-   - Open Arduino IDE
-   - Go to **Sketch → Include Library → Manage Libraries**
-   - Search for "FastLED"
-   - Install **FastLED by Daniel Garcia**
-
-3. **Upload the Sketch**
-   - Open `bike_lights/bike_lights.ino`
-   - Select **Tools → Board → Arduino Uno** (or SparkFun RedBoard)
-   - Select your COM port under **Tools → Port**
-   - Click **Upload** button
-
-### Hardware Assembly
-
-1. **Test LEDs First**
-   - Connect just the first LED strip to test
-   - Use a 5V power supply (not USB - not enough current)
-   - Verify data flow through all strips
-
-2. **Mount LEDs on Bike**
-   - Front strips: Along front rack sides
-   - Tail grids: Rear of bike (arrange in 4x12 pattern)
-   - Use waterproof housing/coating
-
-3. **Wire Power System**
-   - Install buck converter near battery
-   - Run heavy gauge wire (18-20 AWG) for 5V power
-   - Connect all LED VCC/GND in parallel
-   - **Don't forget common ground to RedBoard!**
-
-4. **Wire Control Inputs**
-   - Mount handlebar switch
-   - Run wires to RedBoard pins 2,3,4
-   - Install brake switch on hydraulic banjo bolt
-
-5. **Weatherproof Everything**
-   - Use heat shrink on all connections
-   - Silicone sealant on RedBoard enclosure
-   - Waterproof housing for buck converter
-
-## Testing
-
-### Startup Test
-On power-up, all LEDs will flash:
-1. Red (300ms)
-2. Green (300ms)
-3. Blue (300ms)
-4. Off
-
-This confirms all LEDs are working.
-
-### Serial Monitor
-Open Serial Monitor (115200 baud) to see debug output:
-```
-Bike Lights System Starting...
-Bike Lights Ready!
+┌─────────────────────────────────────────────────────┐
+│  Vehicle 1              Vehicle 2              Vehicle 3   │
+│  ┌──────────┐          ┌──────────┐          ┌──────────┐ │
+│  │ Arduino  │          │ Arduino  │          │ Arduino  │ │
+│  │ + LEDs   │          │ + LEDs   │          │ + LEDs   │ │
+│  └────┬─────┘          └────┬─────┘          └────┬─────┘ │
+│       │                     │                     │        │
+│  ┌────▼─────┐          ┌────▼─────┐          ┌────▼─────┐ │
+│  │ Pi Zero  │◄────────►│ Pi Zero  │◄────────►│ Pi Zero  │ │
+│  │ WiFi/BT  │   Mesh   │ WiFi/BT  │   Mesh   │ WiFi/BT  │ │
+│  └──────────┘          └──────────┘          └──────────┘ │
+│  EchoFlux              EchoFlux              EchoFlux      │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Troubleshooting
+### Communication Paths
 
-| Issue | Solution |
-|-------|----------|
-| LEDs don't light up | Check power connections, verify 5V at LED strips |
-| LEDs show wrong colors | Verify GND is common between RedBoard and LED power |
-| First few LEDs work, rest don't | Check data line connections between strips |
-| Dim or flickering LEDs | Power supply insufficient - use thicker wire or higher amp converter |
-| Turn signals don't respond | Check switch wiring, verify pins 2,3 connections |
+1. **Arduino ↔ Pi**: Serial UART (commands, sensor data)
+2. **Pi ↔ Pi**: WiFi mesh or Bluetooth (sync messages)
+3. **Pi → EchoFlux**: Local API (music control)
+4. **User ↔ System**: Mobile app via WiFi/BLE
 
-## Future Enhancements
+## Component Projects
 
-- **Hydraulic Brake Switch**: Replace Pin 4 momentary button with hydraulic brake light switch on banjo bolt
-- **Horn**: Pin 7 (momentary button) - could flash all LEDs white
-- **Battery monitor**: Analog pin to check battery level
-- **Wireless control**: Bluetooth module for smartphone app
-- **More party modes**: Sparkles, chase patterns, etc.
+### 1. Arduino Bike Lights
+**Status**: ✅ Complete
+**Purpose**: Low-level LED control, sensors, and local features
 
-## Customization
+**Features**:
+- Real-time LED animations (turn signals, brake, party mode)
+- Battery voltage monitoring
+- Horn control with relay
+- Standalone operation (works without Pi)
+- Serial interface for external control
 
-### Adjust Brightness
-Change line 16 in `bike_lights.ino`:
-```cpp
-#define BRIGHTNESS 200  // 0-255, default 200
-```
+**Hardware**: SparkFun RedBoard, WS2812B LEDs, 12V battery
 
-### Adjust Animation Speeds
-Lines 46-49 in `bike_lights.ino`:
-```cpp
-#define CHEVRON_SPEED 80      // Lower = faster chevrons
-#define TURN_FLASH_SPEED 500  // Lower = faster flashing
-#define BRAKE_ANIM_SPEED 50   // Lower = faster brake animation
-#define PARTY_SPEED 30        // Lower = faster party mode
-```
+[📖 Full Documentation](./arduino-bike-lights/README.md)
 
-### Change Colors
-Search for these in `bike_lights.ino` to customize colors:
-- **Turn signals**: `CRGB(255, 100, 0)` - Orange chevrons
-- **Tail lights**: `CRGB(TAIL_PERIMETER_BRIGHT, 0, 0)` - Red perimeter
-- **Party mode**: Uses HSV color space - modify `CHSV()` calls in `drawPartyFrontStrip()` and `drawPartyTailLights()`
+---
 
-## License
+### 2. Raspberry Pi Controller
+**Status**: 🚧 Design Phase
+**Purpose**: Network coordination, music sync, and intelligence
 
-MIT License - Feel free to modify and share!
+**Planned Features**:
+- WiFi mesh networking (802.11s or custom)
+- Bluetooth LE for close-range sync
+- EchoFlux integration for music playback
+- Pattern/animation library
+- Auto-discovery of nearby vehicles
+- Command relay to Arduino via serial
+- GPS for location-based formations
+- Web API for mobile app control
+
+**Hardware**: Raspberry Pi Zero W (or Pi Zero 2 W)
+
+[📋 See Architecture Docs](./docs/NETWORKING_ARCHITECTURE.md)
+
+---
+
+### 3. Sync Protocol
+**Status**: 🚧 Design Phase
+**Purpose**: Define message format and timing for synchronization
+
+**Key Requirements**:
+- Low latency (<50ms for light sync)
+- Resilient to packet loss
+- Time synchronization (NTP or custom)
+- State broadcasting (animation, music position)
+- Leader election for coordinated shows
+- Backward compatible
+
+[📋 Protocol Specification](./docs/SYNC_PROTOCOL.md)
+
+---
+
+## Use Cases
+
+### 🚴 Group Ride Sync
+**Scenario**: 5 bikes riding together
+**Behavior**:
+- Auto-discover when within 50m range
+- Elect leader (first to arrive or manual)
+- Leader broadcasts pattern every 100ms
+- All bikes sync animations to leader
+- Turn signals remain independent (safety)
+
+### 🎵 Music-Synced Light Show
+**Scenario**: Parked bikes at night with music
+**Behavior**:
+- All Pis running EchoFlux
+- Leader broadcasts music position every 500ms
+- Lights animate to beat/frequency
+- Phase-locked to prevent drift
+- Graceful degradation if sync lost
+
+### 🌐 Mesh Network Relay
+**Scenario**: Long line of bikes (parade, etc.)
+**Behavior**:
+- Each Pi acts as mesh node
+- Messages hop through network
+- Extended range beyond direct WiFi
+- Dynamic routing if bikes move
+
+### 📱 Mobile App Control
+**Scenario**: User wants to change patterns
+**Behavior**:
+- Phone connects to nearest Pi via BLE or WiFi
+- Send commands to one or all vehicles
+- Upload custom patterns
+- Monitor battery levels
+- Emergency stop
+
+## Getting Started
+
+### Quick Start (Arduino Only)
+If you just want basic bike lights without networking:
+
+1. **Build the hardware**: See [arduino-bike-lights/PARTS_LIST.md](./arduino-bike-lights/PARTS_LIST.md)
+2. **Wire it up**: Follow [arduino-bike-lights/WIRING.md](./arduino-bike-lights/WIRING.md)
+3. **Upload firmware**: [arduino-bike-lights/README.md](./arduino-bike-lights/README.md)
+4. **Ride!** 🚴💡
+
+### Full Platform (Arduino + Pi + Networking)
+Coming soon! This will enable:
+- Multi-vehicle synchronization
+- EchoFlux music integration
+- Mobile app control
+- Advanced sensor features
+
+*See [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md) for multi-vehicle setup guide (in progress)*
+
+## Technology Stack
+
+### Current (Arduino)
+- **Platform**: Arduino Uno compatible (ATmega328P)
+- **Language**: C++ (Arduino framework)
+- **Library**: FastLED for LED control
+- **LEDs**: WS2812B addressable RGB (216 total)
+
+### Future (Raspberry Pi)
+- **Platform**: Raspberry Pi Zero W / Zero 2 W
+- **OS**: Raspberry Pi OS Lite (Debian-based)
+- **Language**: Python 3.9+ (asyncio for concurrency)
+- **Networking**:
+  - WiFi: Built-in 802.11n (2.4GHz)
+  - Bluetooth: Built-in BLE 4.2
+  - Mesh: batman-adv or custom protocol
+- **Libraries**:
+  - `pyserial` - Arduino communication
+  - `asyncio` - Event loop for sync
+  - `aiohttp` - EchoFlux API client
+  - `bluepy` or `bleak` - BLE communication
+  - `python-osc` - Music sync messages
+
+### Future (Mobile App)
+- **Platform**: React Native or Flutter (cross-platform)
+- **Protocols**: BLE, HTTP REST API
+- **Features**: Pattern control, battery monitor, group management
+
+## Development Roadmap
+
+### Phase 1: Arduino Foundation ✅ COMPLETE
+- [x] LED control with animations
+- [x] Turn signals with chevrons
+- [x] Brake lights
+- [x] Party mode
+- [x] Horn integration
+- [x] Battery monitoring
+
+### Phase 2: Pi Controller (Next)
+- [ ] Pi Zero setup and serial communication
+- [ ] Arduino command protocol over UART
+- [ ] WiFi discovery and connection
+- [ ] Basic pattern broadcasting
+- [ ] EchoFlux integration
+- [ ] Time synchronization
+
+### Phase 3: Multi-Vehicle Sync
+- [ ] Sync protocol implementation
+- [ ] Leader election algorithm
+- [ ] State broadcasting
+- [ ] Latency compensation
+- [ ] Mesh networking (optional)
+
+### Phase 4: Advanced Features
+- [ ] Mobile app (basic control)
+- [ ] GPS integration
+- [ ] Formation patterns
+- [ ] Music visualization
+- [ ] Custom pattern uploads
+- [ ] Analytics dashboard
 
 ## Contributing
 
-Found a bug or have an improvement? Open an issue or submit a pull request!
+This is a personal project, but ideas and suggestions are welcome!
+
+**Current Focus**: Designing the Pi controller and sync protocol
+
+## Resources
+
+### Related Projects
+- **EchoFlux**: https://github.com/mxjxn/echoflux - Synchronized music player
+- **FastLED**: https://fastled.io/ - Arduino LED library
+- **WLED**: https://github.com/Aircoookie/WLED - Inspiration for WiFi LED control
+
+### Useful Links
+- [Raspberry Pi Zero W Specs](https://www.raspberrypi.com/products/raspberry-pi-zero-w/)
+- [WS2812B Datasheet](https://cdn-shop.adafruit.com/datasheets/WS2812B.pdf)
+- [Batman-adv Mesh Protocol](https://www.open-mesh.org/projects/batman-adv/wiki)
+
+## License
+
+MIT License - Feel free to fork, modify, and share!
+
+---
+
+**Status**: 🚧 Active Development
+**Last Updated**: 2025-11-22
+**Next Milestone**: Pi Controller Design Document
+
+🚴 Happy riding! 💡
