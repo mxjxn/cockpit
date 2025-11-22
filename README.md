@@ -11,7 +11,11 @@ A complete Arduino-based lighting system for bicycles featuring animated turn si
 - **Party Mode**: Rainbow wave animations on front strips + color-changing rings in tail light centers (perimeter stays red for safety)
   - Turn signals override party mode animations
   - Toggle on/off with handlebar button
-- **Expandable**: Ready for horn integration and real hydraulic brake switch
+- **Horn**: 12V horn with relay control + white LED strobe effect (highest priority, overrides everything)
+- **Battery Monitor**: Real-time 12V battery voltage monitoring with visual warnings
+  - Low battery: Amber pulse indicator
+  - Critical battery: Fast red flash alert
+- **Expandable**: Ready for hydraulic brake switch upgrade
 
 ## Hardware Requirements
 
@@ -23,11 +27,21 @@ A complete Arduino-based lighting system for bicycles featuring animated turn si
   - Total: 216 LEDs
 - **Handlebar Controls**:
   - **3-way toggle switch** (turn signals - left/center/right)
-  - **Momentary button** (brake standin - will be replaced with hydraulic brake switch)
+  - **Momentary button #1** (brake standin - will be replaced with hydraulic brake switch)
   - **Toggle button** (party mode on/off)
+  - **Momentary button #2** (horn)
 - **12V battery** (recommended: 12V 5Ah+ for good runtime)
 - **12V to 5V buck converter** (10A+ rated)
+- **Horn System**:
+  - **12V horn** (motorcycle/automotive, 1-2A)
+  - **5V relay module** (SRD-05VDC-SL-C or similar)
+- **Battery Monitor**:
+  - **10kΩ resistor** (voltage divider R1)
+  - **6.8kΩ resistor** (voltage divider R2)
+  - **0.1µF capacitor** (optional, for filtering)
 - **Wiring**: 18-20 AWG wire for power, 22-24 AWG for signals
+
+**See [HORN_AND_BATTERY.md](HORN_AND_BATTERY.md) for detailed horn and battery monitor setup**
 
 ### Power Supply Recommendations
 
@@ -76,6 +90,9 @@ RedBoard Pin 2 ──→ Turn Signal Left Switch ──→ GND (when active)
 RedBoard Pin 3 ──→ Turn Signal Right Switch ──→ GND (when active)
 RedBoard Pin 4 ──→ Brake Momentary Button ──→ GND (when pressed)
 RedBoard Pin 5 ──→ Party Mode Toggle Button ──→ GND (when on)
+RedBoard Pin 7 ──→ Horn Momentary Button ──→ GND (when pressed)
+RedBoard Pin 8 ──→ Horn Relay Module (IN pin)
+RedBoard Pin A0 ──→ Voltage Divider Output (between R1 and R2)
 ```
 
 All switches use **INPUT_PULLUP** mode (active LOW). Wire one side of each switch to the pin, the other to GND.
@@ -96,7 +113,9 @@ Right Position: Pin 3 → GND (Pin 2 open)
 | 4 | Brake (temp) | Digital Input | Active LOW, momentary button standin |
 | 5 | Party Mode | Digital Input | Active LOW, toggle button |
 | 6 | LED Data | Digital Output | WS2812B data line |
-| 7 | Horn (future) | Digital Input | Reserved for horn button |
+| 7 | Horn Button | Digital Input | Active LOW, momentary button |
+| 8 | Horn Relay | Digital Output | Drives 5V relay for 12V horn |
+| A0 | Battery Voltage | Analog Input | Voltage divider (10kΩ + 6.8kΩ) |
 
 ## LED Grid Layout
 
@@ -116,10 +135,12 @@ Row 3:   ↑  ↓  ↑  ↓  ↑  ↓  ↑  ↓  ↑  ↓  ↑  ↓
 
 ### Animation Priority
 The system uses the following priority order (highest to lowest):
-1. **Turn Signals** - Always override all other modes
-2. **Brake** - Overrides party mode and normal tail lights
-3. **Party Mode** - Active when toggle is on
-4. **Normal Mode** - Default state
+1. **Horn** - WHITE STROBE (overrides everything for maximum visibility)
+2. **Turn Signals** - Override party mode and normal lights
+3. **Brake** - Overrides party mode and normal tail lights
+4. **Party Mode** - Active when toggle is on
+5. **Normal Mode** - Default state
+6. **Battery Warnings** - Subtle overlay, doesn't interfere with safety features
 
 ### Tail Lights (Normal Mode)
 - **Perimeter**: Bright red outline (255 brightness)
@@ -152,6 +173,26 @@ Activated by toggle button (Pin 5):
   - **Center**: Color-changing rings radiating from center
 - **Animation speed**: 30ms per frame
 - **Overridden by**: Turn signals and brake
+
+### Horn (Highest Priority!)
+Activated by momentary button (Pin 7):
+- **12V horn sounds** via relay (Pin 8)
+- **All 216 LEDs strobe bright white** at 10Hz (100ms on/off)
+- **Off phase**: Shows normal tail lights (safety)
+- **Overrides everything** - maximum visibility and attention
+
+### Battery Monitor Warnings
+Subtle visual indicators (don't interfere with safety features):
+
+| Battery Level | Voltage | Indicator |
+|---------------|---------|-----------|
+| **Good** | > 10.5V | No warning |
+| **Low** | 10.0V - 10.5V | Amber pulse on first LED of each tail grid (1Hz) |
+| **Critical** | < 10.0V | Fast red flash on bottom 3 LEDs of each tail grid (4Hz) |
+
+- **Serial Monitor**: Shows voltage every 2 seconds
+- **Voltage displayed**: Accurate to ±0.2V
+- **See [HORN_AND_BATTERY.md](HORN_AND_BATTERY.md)** for voltage divider setup
 
 ## Installation
 
