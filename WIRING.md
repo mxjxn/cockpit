@@ -47,7 +47,8 @@
                    │                  │
                    │ Pin 2 ←──────────┼──── Turn Left Switch ──→ GND
                    │ Pin 3 ←──────────┼──── Turn Right Switch ──→ GND
-                   │ Pin 4 ←──────────┼──── Brake Switch ──→ GND
+                   │ Pin 4 ←──────────┼──── Brake Button (temp) ──→ GND
+                   │ Pin 5 ←──────────┼──── Party Mode Toggle ──→ GND
                    │                  │
                    │ 5V or VIN ───────┼──→ USB or 5V from Buck
                    └──────────────────┘
@@ -91,10 +92,17 @@ Pin 2:   Connected to GND   Open     Open
 Pin 3:   Open               Open     Connected to GND
 ```
 
-**Brake Switch:**
+**Brake Momentary Button (temporary standin):**
 - One terminal to Pin 4
 - Other terminal to GND
 - When pressed, connects Pin 4 to GND
+- **Note**: Will be replaced with hydraulic brake switch later
+
+**Party Mode Toggle Button:**
+- One terminal to Pin 5
+- Other terminal to GND
+- When ON (closed), connects Pin 5 to GND
+- When OFF (open), Pin 5 pulled HIGH by internal pullup
 
 ### Step 6: Power for RedBoard
 Choose one option:

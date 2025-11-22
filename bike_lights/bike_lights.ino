@@ -5,8 +5,9 @@
  * - SparkFun RedBoard (Arduino Uno compatible)
  * - 2x 60 LED WS2812B strips (front left/right)
  * - 2x 48 LED WS2812B grids (4x12, tail left/right)
- * - 3-way turn signal switch
- * - Brake switch (momentary)
+ * - 3-way turn signal toggle switch
+ * - Momentary button (standin for brake until real brake switch wired)
+ * - Toggle button (party mode on/off)
  *
  * Total LEDs: 216 (120 front + 96 rear)
  */
@@ -37,13 +38,15 @@
 // Input Pins
 #define PIN_TURN_LEFT 2
 #define PIN_TURN_RIGHT 3
-#define PIN_BRAKE 4
-// Future: PIN_HIGH_BEAM 5, PIN_HORN 7
+#define PIN_BRAKE 4        // Momentary button (standin until real brake switch)
+#define PIN_PARTY_MODE 5   // Toggle button for party mode
+// Future: PIN_HORN 7
 
 // Animation timing
 #define CHEVRON_SPEED 80      // ms between chevron frames
 #define TURN_FLASH_SPEED 500  // ms for turn signal flash
 #define BRAKE_ANIM_SPEED 50   // ms for brake animation
+#define PARTY_SPEED 30        // ms for party mode animations
 
 // ===== GLOBAL STATE =====
 CRGB leds[NUM_LEDS];
@@ -56,12 +59,15 @@ enum TurnSignalState {
 
 TurnSignalState turnState = TURN_OFF;
 bool brakeActive = false;
+bool partyModeActive = false;
 unsigned long lastChevronUpdate = 0;
 unsigned long lastTurnFlash = 0;
 unsigned long lastBrakeUpdate = 0;
+unsigned long lastPartyUpdate = 0;
 int chevronOffset = 0;
 bool turnFlashOn = false;
 int brakeAnimFrame = 0;
+uint8_t partyHue = 0;  // Rotating hue for party mode
 
 // Tail light brightness levels
 #define TAIL_PERIMETER_BRIGHT 255
@@ -196,6 +202,33 @@ void drawBrakeAnimation(int gridStart, int frame) {
   }
 }
 
+// Party mode: rainbow wave on front strips
+void drawPartyFrontStrip(int start, int count, uint8_t hueOffset) {
+  for (int i = 0; i < count; i++) {
+    // Create a moving rainbow wave
+    uint8_t hue = hueOffset + (i * 256 / count);
+    leds[start + i] = CHSV(hue, 255, 200);
+  }
+}
+
+// Party mode: color-changing tail lights (perimeter stays red, center changes)
+void drawPartyTailLights(int gridStart, uint8_t hue) {
+  for (int col = 0; col < GRID_COLS; col++) {
+    for (int row = 0; row < GRID_ROWS; row++) {
+      int idx = gridToIndex(gridStart, row, col);
+      if (isPerimeter(row, col)) {
+        // Perimeter stays bright red for safety
+        leds[idx] = CRGB(TAIL_PERIMETER_BRIGHT, 0, 0);
+      } else {
+        // Center: color-changing rings radiating from center
+        int distFromCenter = abs(col - GRID_COLS / 2) + abs(row - GRID_ROWS / 2);
+        uint8_t pixelHue = hue + (distFromCenter * 30);
+        leds[idx] = CHSV(pixelHue, 255, 150);
+      }
+    }
+  }
+}
+
 // ===== INPUT HANDLING =====
 
 void readInputs() {
@@ -211,8 +244,11 @@ void readInputs() {
     turnState = TURN_OFF;
   }
 
-  // Read brake switch
+  // Read brake switch (momentary button standin)
   brakeActive = digitalRead(PIN_BRAKE) == LOW;  // Active low with pullup
+
+  // Read party mode toggle
+  partyModeActive = digitalRead(PIN_PARTY_MODE) == LOW;  // Active low with pullup
 }
 
 // ===== MAIN RENDERING =====
@@ -220,14 +256,28 @@ void readInputs() {
 void updateLights() {
   unsigned long now = millis();
 
+  // Update party mode animation
+  if (partyModeActive && (now - lastPartyUpdate > PARTY_SPEED)) {
+    lastPartyUpdate = now;
+    partyHue += 2;  // Rotate hue for party mode
+  }
+
   // ===== FRONT LIGHTS =====
+  // Turn signals OVERRIDE party mode
   if (turnState == TURN_OFF) {
-    // Soft ambient lighting on front strips
-    setFrontStripPattern(FRONT_LEFT_START, FRONT_LEFT_COUNT, CRGB(50, 50, 50), 100);
-    setFrontStripPattern(FRONT_RIGHT_START, FRONT_RIGHT_COUNT, CRGB(50, 50, 50), 100);
+    // No turn signal active
+    if (partyModeActive) {
+      // Party mode: rainbow wave on front strips
+      drawPartyFrontStrip(FRONT_LEFT_START, FRONT_LEFT_COUNT, partyHue);
+      drawPartyFrontStrip(FRONT_RIGHT_START, FRONT_RIGHT_COUNT, partyHue + 128);  // Offset for variety
+    } else {
+      // Normal mode: soft ambient lighting
+      setFrontStripPattern(FRONT_LEFT_START, FRONT_LEFT_COUNT, CRGB(50, 50, 50), 100);
+      setFrontStripPattern(FRONT_RIGHT_START, FRONT_RIGHT_COUNT, CRGB(50, 50, 50), 100);
+    }
     turnFlashOn = false;
   } else {
-    // Flash turn signals
+    // Turn signal ACTIVE - overrides party mode
     if (now - lastTurnFlash > TURN_FLASH_SPEED) {
       lastTurnFlash = now;
       turnFlashOn = !turnFlashOn;
@@ -236,17 +286,28 @@ void updateLights() {
     if (turnState == TURN_LEFT) {
       setFrontStrip(FRONT_LEFT_START, FRONT_LEFT_COUNT,
                     turnFlashOn ? CRGB(255, 100, 0) : CRGB::Black);
-      setFrontStripPattern(FRONT_RIGHT_START, FRONT_RIGHT_COUNT, CRGB(50, 50, 50), 100);
+      // Non-signaling side: show party mode if active, otherwise ambient
+      if (partyModeActive) {
+        drawPartyFrontStrip(FRONT_RIGHT_START, FRONT_RIGHT_COUNT, partyHue + 128);
+      } else {
+        setFrontStripPattern(FRONT_RIGHT_START, FRONT_RIGHT_COUNT, CRGB(50, 50, 50), 100);
+      }
     } else {  // TURN_RIGHT
-      setFrontStripPattern(FRONT_LEFT_START, FRONT_LEFT_COUNT, CRGB(50, 50, 50), 100);
+      // Non-signaling side: show party mode if active, otherwise ambient
+      if (partyModeActive) {
+        drawPartyFrontStrip(FRONT_LEFT_START, FRONT_LEFT_COUNT, partyHue);
+      } else {
+        setFrontStripPattern(FRONT_LEFT_START, FRONT_LEFT_COUNT, CRGB(50, 50, 50), 100);
+      }
       setFrontStrip(FRONT_RIGHT_START, FRONT_RIGHT_COUNT,
                     turnFlashOn ? CRGB(255, 100, 0) : CRGB::Black);
     }
   }
 
   // ===== TAIL LIGHTS =====
+  // Priority: Brake > Turn Signal > Party Mode > Normal
   if (brakeActive) {
-    // Brake animation
+    // Brake animation (highest priority for safety)
     if (now - lastBrakeUpdate > BRAKE_ANIM_SPEED) {
       lastBrakeUpdate = now;
       brakeAnimFrame = (brakeAnimFrame + 1) % 2;
@@ -255,7 +316,7 @@ void updateLights() {
     drawBrakeAnimation(TAIL_RIGHT_START, brakeAnimFrame);
 
   } else if (turnState == TURN_LEFT || turnState == TURN_RIGHT) {
-    // Chevron animation on appropriate side
+    // Turn signal chevron animation - overrides party mode
     if (now - lastChevronUpdate > CHEVRON_SPEED) {
       lastChevronUpdate = now;
       chevronOffset = (chevronOffset + 1) % (GRID_COLS + 5);
@@ -263,16 +324,33 @@ void updateLights() {
 
     if (turnState == TURN_LEFT) {
       drawChevron(TAIL_LEFT_START, chevronOffset, true);
-      drawTailLights(TAIL_RIGHT_START, TAIL_CENTER_DIM);
-    } else {
-      drawTailLights(TAIL_LEFT_START, TAIL_CENTER_DIM);
+      // Non-signaling side: party mode if active, otherwise normal
+      if (partyModeActive) {
+        drawPartyTailLights(TAIL_RIGHT_START, partyHue + 128);
+      } else {
+        drawTailLights(TAIL_RIGHT_START, TAIL_CENTER_DIM);
+      }
+    } else {  // TURN_RIGHT
+      // Non-signaling side: party mode if active, otherwise normal
+      if (partyModeActive) {
+        drawPartyTailLights(TAIL_LEFT_START, partyHue);
+      } else {
+        drawTailLights(TAIL_LEFT_START, TAIL_CENTER_DIM);
+      }
       drawChevron(TAIL_RIGHT_START, chevronOffset, false);
     }
 
   } else {
-    // Normal tail lights
-    drawTailLights(TAIL_LEFT_START, TAIL_CENTER_DIM);
-    drawTailLights(TAIL_RIGHT_START, TAIL_CENTER_DIM);
+    // No brake, no turn signal
+    if (partyModeActive) {
+      // Party mode: color-changing centers, red perimeter
+      drawPartyTailLights(TAIL_LEFT_START, partyHue);
+      drawPartyTailLights(TAIL_RIGHT_START, partyHue + 128);
+    } else {
+      // Normal tail lights
+      drawTailLights(TAIL_LEFT_START, TAIL_CENTER_DIM);
+      drawTailLights(TAIL_RIGHT_START, TAIL_CENTER_DIM);
+    }
     brakeAnimFrame = 0;  // Reset brake animation
   }
 }
@@ -294,6 +372,7 @@ void setup() {
   pinMode(PIN_TURN_LEFT, INPUT_PULLUP);
   pinMode(PIN_TURN_RIGHT, INPUT_PULLUP);
   pinMode(PIN_BRAKE, INPUT_PULLUP);
+  pinMode(PIN_PARTY_MODE, INPUT_PULLUP);
 
   // Startup animation: quick test of all LEDs
   for (int i = 0; i < NUM_LEDS; i++) {
