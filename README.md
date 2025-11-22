@@ -4,11 +4,14 @@ A complete Arduino-based lighting system for bicycles featuring animated turn si
 
 ## Features
 
-- **Turn Signals**: Animated chevron arrows moving across 4x12 LED grids
-- **Brake Lights**: Animated alternating pattern that intensifies when braking
+- **Turn Signals**: Animated chevron arrows moving across 4x12 LED grids (overrides all other modes)
+- **Brake Lights**: Animated alternating pattern that intensifies when braking (momentary button standin until hydraulic brake switch installed)
 - **Tail Lights**: Bright red perimeter outline with soft center illumination
 - **Front Rack Lights**: Soft ambient lighting with bright flashing turn indicators
-- **Expandable**: Ready for high beam and horn integration
+- **Party Mode**: Rainbow wave animations on front strips + color-changing rings in tail light centers (perimeter stays red for safety)
+  - Turn signals override party mode animations
+  - Toggle on/off with handlebar button
+- **Expandable**: Ready for horn integration and real hydraulic brake switch
 
 ## Hardware Requirements
 
@@ -18,8 +21,10 @@ A complete Arduino-based lighting system for bicycles featuring animated turn si
   - 2x 60 LED strips (front left/right on rack)
   - 2x 48 LED grids (4x12, arranged as tail lights)
   - Total: 216 LEDs
-- **3-way toggle switch** (turn signals - left/center/right)
-- **Momentary switch** (brake)
+- **Handlebar Controls**:
+  - **3-way toggle switch** (turn signals - left/center/right)
+  - **Momentary button** (brake standin - will be replaced with hydraulic brake switch)
+  - **Toggle button** (party mode on/off)
 - **12V battery** (recommended: 12V 5Ah+ for good runtime)
 - **12V to 5V buck converter** (10A+ rated)
 - **Wiring**: 18-20 AWG wire for power, 22-24 AWG for signals
@@ -69,7 +74,8 @@ All LED strips are **daisy-chained** on the data line in this order:
 ```
 RedBoard Pin 2 ──→ Turn Signal Left Switch ──→ GND (when active)
 RedBoard Pin 3 ──→ Turn Signal Right Switch ──→ GND (when active)
-RedBoard Pin 4 ──→ Brake Switch ──→ GND (when pressed)
+RedBoard Pin 4 ──→ Brake Momentary Button ──→ GND (when pressed)
+RedBoard Pin 5 ──→ Party Mode Toggle Button ──→ GND (when on)
 ```
 
 All switches use **INPUT_PULLUP** mode (active LOW). Wire one side of each switch to the pin, the other to GND.
@@ -87,10 +93,10 @@ Right Position: Pin 3 → GND (Pin 2 open)
 |-----|----------|------|-------|
 | 2 | Turn Left | Digital Input | Active LOW, pullup enabled |
 | 3 | Turn Right | Digital Input | Active LOW, pullup enabled |
-| 4 | Brake | Digital Input | Active LOW, pullup enabled |
-| 5 | High Beam (future) | Digital Input | Reserved |
+| 4 | Brake (temp) | Digital Input | Active LOW, momentary button standin |
+| 5 | Party Mode | Digital Input | Active LOW, toggle button |
 | 6 | LED Data | Digital Output | WS2812B data line |
-| 7 | Horn (future) | Digital Input | Reserved |
+| 7 | Horn (future) | Digital Input | Reserved for horn button |
 
 ## LED Grid Layout
 
@@ -108,22 +114,44 @@ Row 3:   ↑  ↓  ↑  ↓  ↑  ↓  ↑  ↓  ↑  ↓  ↑  ↓
 
 ## Animations
 
-### Tail Lights (Default)
+### Animation Priority
+The system uses the following priority order (highest to lowest):
+1. **Turn Signals** - Always override all other modes
+2. **Brake** - Overrides party mode and normal tail lights
+3. **Party Mode** - Active when toggle is on
+4. **Normal Mode** - Default state
+
+### Tail Lights (Normal Mode)
 - **Perimeter**: Bright red outline (255 brightness)
 - **Center**: Soft red fill (76 brightness, ~30%)
 
-### Turn Signals
-- **Front strips**: Bright orange flash (500ms on/off)
-- **Tail grids**: 3 moving chevron arrows (4px wide each)
+### Turn Signals (Highest Priority)
+- **Front strips**: Bright orange flash on signaling side (500ms on/off)
+  - Non-signaling side shows party mode if active, otherwise ambient
+- **Tail grids**: 3 moving chevron arrows (4px wide each) on signaling side
   - Left signal: Chevrons point left (<)
   - Right signal: Chevrons point right (>)
+  - Non-signaling side shows party mode if active, otherwise normal tail lights
   - Animation speed: 80ms per frame
+- **Always overrides party mode and normal modes**
 
 ### Brake Lights
 - **Perimeter**: Remains bright red
 - **Center**: Animates from 30% to 90% brightness
 - Alternating checkerboard pattern for visual impact
 - Animation speed: 50ms per frame
+- **Note**: Currently triggered by momentary button (Pin 4) until hydraulic brake switch is installed
+
+### Party Mode
+Activated by toggle button (Pin 5):
+- **Front strips**:
+  - Smooth rainbow wave animation
+  - Left and right strips offset for visual variety
+- **Tail grids**:
+  - **Perimeter**: Stays bright red for safety visibility
+  - **Center**: Color-changing rings radiating from center
+- **Animation speed**: 30ms per frame
+- **Overridden by**: Turn signals and brake
 
 ## Installation
 
@@ -202,10 +230,11 @@ Bike Lights Ready!
 
 ## Future Enhancements
 
-- **High Beam**: Pin 5 (toggle switch)
+- **Hydraulic Brake Switch**: Replace Pin 4 momentary button with hydraulic brake light switch on banjo bolt
 - **Horn**: Pin 7 (momentary button) - could flash all LEDs white
 - **Battery monitor**: Analog pin to check battery level
 - **Wireless control**: Bluetooth module for smartphone app
+- **More party modes**: Sparkles, chase patterns, etc.
 
 ## Customization
 
@@ -216,16 +245,19 @@ Change line 16 in `bike_lights.ino`:
 ```
 
 ### Adjust Animation Speeds
-Lines 48-50:
+Lines 46-49 in `bike_lights.ino`:
 ```cpp
 #define CHEVRON_SPEED 80      // Lower = faster chevrons
 #define TURN_FLASH_SPEED 500  // Lower = faster flashing
 #define BRAKE_ANIM_SPEED 50   // Lower = faster brake animation
+#define PARTY_SPEED 30        // Lower = faster party mode
 ```
 
 ### Change Colors
-- Turn signals: Line 137, 219, 250 - `CRGB(255, 100, 0)` (orange)
-- Tail lights: Lines 110, 112, 186 - `CRGB(R, G, B)` (red)
+Search for these in `bike_lights.ino` to customize colors:
+- **Turn signals**: `CRGB(255, 100, 0)` - Orange chevrons
+- **Tail lights**: `CRGB(TAIL_PERIMETER_BRIGHT, 0, 0)` - Red perimeter
+- **Party mode**: Uses HSV color space - modify `CHSV()` calls in `drawPartyFrontStrip()` and `drawPartyTailLights()`
 
 ## License
 
